@@ -24,6 +24,19 @@ add_hours = function(d, n){
   d %m+% minutes(n*60)
 }
 
+# function to translate logical inputs into a search string
+format_search_str = function(x, mode){
+  mode = paste0(mode, ':')
+  x1 = x %>% str_replace_all(., ' ', '') %>% str_replace(., '^', mode) %>% 
+    str_replace(., paste0(mode, '-'), paste0('-', mode)) %>%  # move minus to prefix position
+    str_replace(., paste0(mode, '%22-'), paste0('-', mode, '%22')) # for image tags which also have %22
+  ifelse(any(str_detect(x1, '-')),
+         paste(x1, collapse='%20'),
+         ifelse(length(x1) > 1, paste0('(', paste(x1, collapse='%20OR%20'), ')'),
+                paste(x1, collapse='%20OR%20'))
+  )
+}
+
 # paths for GDELT's doc' and 'geo' APIs, documented at:
 # https://blog.gdeltproject.org/gdelt-doc-2-0-api-debuts/
 # https://blog.gdeltproject.org/gdelt-geo-2-0-api-debuts/
@@ -82,10 +95,16 @@ server <- function(input, output, session) {
     search = ''
     if(input$search_terms != '') search = input$search_terms
     search = str_replace_all(search, ' ', '%20')
-    if(input$search_domain != '') search = paste0(search, '%20domain:', input$search_domain)
-    if(input$search_country != '') search = paste0(search, '%20sourcecountry:', input$search_country)
-    if(input$source_lang != '') search = paste0(search, '%20sourcelang:', input$source_lang)
-    if(length(input$image_tags) > 0) for(i in input$image_tags) search = paste0(search, '%20imagewebtag:%22', i, '%22')
+    if(input$search_domain != ''){
+      domains = str_split(input$search_domain, ',')[[1]]
+      search = paste0(search, '%20', format_search_str(domains, 'domain'))
+    }
+    if(length(input$search_country) > 0) search = paste0(search, '%20', format_search_str(input$search_country, 'sourcecountry'))
+    if(length(input$source_lang) > 0) search = paste0(search, '%20', format_search_str(input$source_lang, 'sourcelang'))
+    if(length(input$image_tags) > 0){
+      img_tags = format_search_str(paste0('%22', input$image_tags, '%22'), 'imagewebtag')
+      search = ifelse(search == '', paste0(search, img_tags), paste0(search, '%20', img_tags))
+    }
     if(length(input$themes) > 0) for(i in input$themes) search = paste0(search, '%20theme:', str_replace_all(i,' ','_'))
     if(input$output_tab == 'GEO24'){
       if(input$geo_near != '') search = paste0(search, '%20near:', input$geo_near)
@@ -184,11 +203,12 @@ server <- function(input, output, session) {
       h3('INPUTS'),
       p('The service offers 3 ways to search for content:'),
       tags$ul(
-        tags$li(strong('Search term'), " - any work or phrase. Phrases should be nested in double quotes - e.g. ", code('"the Ides of March"'),". Unquoted words seperated by spaces are interpretted as 'x and y' You can search for 'x or y' by enclosing terms in brackets and seperating with 'OR', e.g.", code('(cats OR dogs)'), '.'), 
+        tags$li(strong('Search term'), " - any work or phrase. Phrases should be nested in double quotes - e.g. ", code('"the Ides of March"'),". Unquoted words seperated by spaces are interpretted as 'x and y' You can search for 'x or y' by enclosing terms in brackets and seperating with 'OR', e.g.", code('(cats OR dogs)'), ". Terms prefixed by the minus/hyphen symbol are interpretted as NOT, e.g.", code('-dogs')), 
         tags$li(strong('Image tags'), " - images within content are processed using deep learning algorithms to identify features and text they contain. Search for available tags in the dialogue box, or ", a(href = 'http://data.gdeltproject.org/api/v2/guides/LOOKUP-IMAGETAGS.TXT', 'see the full list', target="_blank"), '.'), 
         tags$li(strong('Themes'), "- these offer a powerful way of searching for complex topics, since they can include hundreds or even thousands of different phrases or names under a single heading. Themes are based on GDELT's Global Knowledge Graph (GKG). Search for relevant themes in the dialogue box, or ", a(href = 'http://data.gdeltproject.org/api/v2/guides/LOOKUP-GKGTHEMES.TXT', 'see the full list', target="_blank"), '.')
       ),
-      p('These work together so e.g. you can specify a search for both search terms AND image tags. Note that when using the GEO24 output the available mode options tend to only work with either search terms or image tags - if you get an error message you may need to re-specify your criteria.'),
+      p(strong('Combinations:'), 'These work together so e.g. you can specify a search for both search terms AND image tags. Note that when using the GEO24 output the available mode options tend to only work with either search terms or image tags - if you get an error message you may need to re-specify your criteria.'),
+      p(strong('NOT criteria:'), "For most fields, inputs prefixed by the minus/hyphen symbol are interpretted as NOT, e.g. search term:", code('-trump'), ', image tag: ', code('-person'), ', country: ', code('-United Kingdom'), ', search languge: ', code('-eng'), ', domain: ', code('-bbc.co.uk'), '.'),
       h4('Other criteria'),
       p("You can further narrow down your query in the following ways:"),
       tags$ul(
@@ -276,7 +296,7 @@ ui <- fluidPage(
   bsTooltip(id = 'image_tags', title = 'Every image processed by GDELT is assigned one or more topical tags from a universe of more than 10,000 objects and activities recognized by Google algorithms', placement = "top", trigger = "hover"),
   bsTooltip(id = 'themes', title = 'Searches for any of the GDELT Global Knowledge Graph (GKG) Themes. GKG Themes offer a powerful way of searching for complex topics, since there can be numerous different phrases or names under a single heading. Key in likely relevant themes to find matching options. Words on the left denote the semantic hierarchy (NB. "TAX" seems to refer to taxonomy not taxation)', placement = "top", trigger = "hover"),
   bsTooltip(id = 'search_country', title = 'Country of media origin', placement = "top", trigger = "hover"),
-  bsTooltip(id = 'search_domain', title = 'Internet domain of origin', placement = "top", trigger = "hover"),
+  bsTooltip(id = 'search_domain', title = 'Internet domain of origin. Accepts multiple domains seperated by commas.', placement = "top", trigger = "hover"),
   bsTooltip(id = 'source_lang', title = 'Language of content. You can specify e.g. French but use search terms in English. GDELT handles the interpretation', placement = "top", trigger = "hover"),
   bsTooltip(id = 'timeline_hours', title = 'Specify period in most recent hours', placement = "bottom", trigger = "hover"),
   bsTooltip(id = 'timeline_daterange', title = '(Functions when "Hours" is blank.) By default GDELT reports the most recent ~3 months, but you can specify any date range within this window', placement = "bottom", trigger = "hover"),
@@ -307,7 +327,7 @@ ui <- fluidPage(
                              ),
                              tabPanel("IMAGE TAGS",
                                       fluidRow(
-                                        column(12, selectizeInput(inputId = 'image_tags', label = 'Image tags', choices = NULL, selected = 1, multiple=T), style=pad)
+                                        column(12, selectizeInput(inputId = 'image_tags', label = 'Image tags', choices = NULL, selected = 1, multiple=T, options=list(create = T)), style=pad)
                                       )
                              ),
                              tabPanel("THEMES",
@@ -317,15 +337,15 @@ ui <- fluidPage(
                              )
                  ),
                  fluidRow(
-                   column(6, selectInput(inputId = 'search_country', label = 'Country', choices = country_codes), style=pad),
+                   column(6, selectizeInput(inputId = 'search_country', label = 'Country', choices = country_codes, multiple = T, options=list(create = T)), style=pad),
                    column(6, textInput(inputId = 'search_domain', label = 'Domain', value = '', placeholder = 'e.g. "bbc.co.uk"'), style=pad)
                  ),
                  fluidRow(
-                   column(7, dateRangeInput(inputId = "timeline_daterange", label = "Date range",
+                   column(6, dateRangeInput(inputId = "timeline_daterange", label = "Date range",
                                             start = add_days(now, -82), end = now,
                                             min = add_days(now, -82), max = now), style=pad),
                    column(2, numericInput(inputId = 'timeline_hours', label='Hours', value='24', min=.25, ), style=pad),
-                   column(3, selectInput(inputId = 'source_lang', label = 'SourceLang', choices = lang_codes, selectize = T), style=pad)
+                   column(4, selectizeInput(inputId = 'source_lang', label = 'SourceLang', choices = lang_codes, multiple = T, options=list(create = T)), style=pad)
                  ),
                  
                  # OUTPUTS       
