@@ -104,13 +104,10 @@ server <- function(input, output, session) {
       url = paste0(geo_root, search, '&mode=', input$geo_mode)
       if(input$timespan != 1440) url = paste0(url, '&timespan=', input$timespan) # timespan in mins
       if(input$geo_format != '') url = paste0(url, '&format=', input$geo_format) # output format
-      # Manage widget fuctionality
-      shinyjs::disable("timeline_daterange")
-      shinyjs::disable("timeline_hours")
-      shinyjs::disable("search_lang")
     } else{
       # CONTENT or TIMELINE modes
       # date params
+      shinyjs::enable("timeline_daterange")
       if(is.na(input$timeline_hours)){ # period defined by date range
         end_date = ifelse(input$timeline_daterange[2] == as.character(today()),
                           format(Sys.time(), '%Y%m%d%H%M%S'), 
@@ -125,23 +122,26 @@ server <- function(input, output, session) {
       url = paste0(root, search)
       if(input$output_tab == 'CONTENT'){
         url = paste0(url, '&mode=', input$content_mode)
-        if(input$max_records > 75) url = paste0(url, '&maxrecords=', input$max_records)
-      }
-      if(input$output_tab == 'TIMELINE'){
+      } else if(input$output_tab == 'TIMELINE'){
         url = paste0(url, '&mode=', input$timeline_mode, '&TIMELINESMOOTH=', input$smooth)
-        if(input$timeline_data != '') url = paste0(url, '&format=', input$timeline_data)
-        shinyjs::enable("timeline_daterange")
       }
+      if(input$max_records > 75) url = paste0(url, '&maxrecords=', input$max_records)
+      if(input$data_format != '') url = paste0(url, '&format=', input$data_format)
       url = paste0(url, '&startdatetime=', start_date, '&enddatetime=', end_date)
-      
-      # Manage widget fuctionality
+    }
+    
+    # Manage widget fuctionality
+    if(input$output_tab == 'GEO24'){
+      for(i in c('timeline_daterange', 'timeline_hours', 'search_lang')) shinyjs::disable(i)
+      for(i in c('max_records', 'data_format')) shinyjs::hide(i)
+    } else{
+      for(i in c('timeline_daterange', 'timeline_hours', 'search_lang')) shinyjs::enable(i)
+      for(i in c('max_records', 'data_format')) shinyjs::show(i)
       if(is.na(input$timeline_hours)) shinyjs::enable("timeline_daterange") else shinyjs::disable("timeline_daterange")
-      shinyjs::enable("timeline_hours")
-      shinyjs::enable("search_lang")
     }
     
     # render to interface for reference and external use
-    output$url = renderUI({ HTML(paste0('<p style="color:#999;font-size: 90%; word-wrap: break-word;">', url, '</p><p  style="color:#999;font-size: 80%;">(2017 Robin Edwards)</p>')) })
+    output$url = renderUI({ HTML(paste0('<p style="color:#999;font-size: 90%; word-wrap: break-word;">', url, '</p><p  style="color:#999;font-size: 80%;">(2017 Robin Edwards. This site is an interface to the GDELT API but has has no formal affiliation.)</p>')) })
     
     # Title to detail search parameters
     search_title = ''
@@ -164,6 +164,51 @@ server <- function(input, output, session) {
       new_iframe <- tags$iframe(src = url, width = w, height = h)
       new_iframe
     })
+    
+  })
+  
+  # Help dialogue
+  observeEvent(input$help, {
+    showModal(modalDialog(
+      h1("How to use GDELT"),
+      hr(),
+      p("GDELT is a web search tool for media, official and typically non-commercial content that offers some powerful alternative ways to find what you want (", a('GDELT home', href = 'https://www.gdeltproject.org/', target="_blank"), '/', a('reference', href = 'https://blog.gdeltproject.org/gdelt-doc-2-0-api-debuts/', target="_blank"), ').' ," GDELT monitors global news media in multiple languages and processes it with advanced machine learning and deep learning algorithms to offer more intelligent search. Some usage examples include:"),
+      tags$ul(
+        tags$li('searching globally in English for content in local languages on a particular topic;'),
+        tags$li('searching for all content posted in the past hour from Japan, or in Japanese, or from a particular website;'),
+        tags$li('finding content based on the features and/or text found in its accompanying imagery;'),
+        tags$li('finding content based on the themes it relates to; or'),
+        tags$li('searching with a combination of these methods')
+      ),
+      p("The panel on the left structures the interface into two main groups - ", strong('inputs'), " and ", strong('outputs'), ". Inputs (top) are the search terms and other criteria that define the query. Outputs (below) are the CONTENT, TIMELINE and GEO24 tabs that group the various modes you can use to visualise and understand the results."),
+      h3('INPUTS'),
+      p('The service offers 3 ways to search for content:'),
+      tags$ul(
+        tags$li(strong('Search term'), " - any work or phrase. Phrases should be nested in double quotes - e.g. ", code('"the Ides of March"'),". Unquoted words seperated by spaces are interpretted as 'x and y' You can search for 'x or y' by enclosing terms in brackets and seperating with 'OR', e.g.", code('(cats OR dogs)'), '.'), 
+        tags$li(strong('Image tags'), " - images within content are processed using deep learning algorithms to identify features and text they contain. Search for available tags in the dialogue box, or ", a(href = 'http://data.gdeltproject.org/api/v2/guides/LOOKUP-IMAGETAGS.TXT', 'see the full list', target="_blank"), '.'), 
+        tags$li(strong('Themes'), "- these offer a powerful way of searching for complex topics, since they can include hundreds or even thousands of different phrases or names under a single heading. Themes are based on GDELT's Global Knowledge Graph (GKG). Search for relevant themes in the dialogue box, or ", a(href = 'http://data.gdeltproject.org/api/v2/guides/LOOKUP-GKGTHEMES.TXT', 'see the full list', target="_blank"), '.')
+      ),
+      p('These work together so e.g. you can specify a search for both search terms AND image tags. Note that when using the GEO24 output the available mode options tend to only work with either search terms or image tags - if you get an error message you may need to re-specify your criteria.'),
+      h4('Other criteria'),
+      p("You can further narrow down your query in the following ways:"),
+      tags$ul(
+        tags$li(strong('Search language'), " - defines the language of the search terms if not English. (This feature seems to have some bugs.)"), 
+        tags$li(strong('Country'), " - defines the country where the media outlets are located. (", a('country list', href = 'http://data.gdeltproject.org/api/v2/guides/LOOKUP-COUNTRIES.TXT', target="_blank"), ')'), 
+        tags$li(strong('Domain'), "- define web domain of content - e.g. website", code('bbc.co.uk'), ' or top-level domain ', code('.gov'), ' (US government content).'),
+        tags$li(strong('Date range'), " - define any window for content dated in the past 3 months. The 'Hours' field must be empty to enable this."), 
+        tags$li(strong('Hours'), " - set to return most recent content in terms of hours."),
+        tags$li(strong('Source language'), " - defines the country where the media outlets are located. (", a('supported languages', href = 'http://data.gdeltproject.org/api/v2/guides/LOOKUP-LANGUAGES.TXT', target="_blank"), ')')
+      ),
+      h3('OUTPUTS'),
+      tags$ul(
+        tags$li(strong('CONTENT'), " - This tab offers the various modes to access the content matching the search."), 
+        tags$li(strong('TIMELINE'), " - This offers the modes available to view volumetric trends for the query over time."), 
+        tags$li(strong('GEO24'), " tab brings up a range of geographical tools to investigate media published in the past 24 hours. The ",em('"Geo mode"'), "dropdown gives the options. Some of the tools are image specific, and will only work for image tag searches (see ", em('IMAGE TAGS'), " tab). Others will work for search terms and not image tags. Most of the tools offer map-based insights not into media source locations but the places and countries mentioned in the content. You can specify your search in terms of countries, sub-national regions (NUTS1), place names or within a user-defined distance from a geographical point. This toolset uses a seperate API (", a('see documentation', href = 'https://blog.gdeltproject.org/gdelt-geo-2-0-api-debuts/', target="_blank"), ').')
+      ),
+      p("If you want to export the results from CONTENT or TIMELINE choose from the options under ", em("Format"),
+        ". The URL at the bottom can be used to call the query output directly from the GDELT API."),
+      easyClose = TRUE
+      , size = 'l'))
   })
 }
 
@@ -193,27 +238,34 @@ ui <- fluidPage(
                     /* compress widgets a bit to fit on page */
                     hr {border-top: 1px solid #000; margin-top: 8px; margin-bottom: 12px; }
                     .form-control {height: 25px; margin-bottom: 0px;}
-                    .selectize-input, .input-sm, .form-group, .shiny-input-container, .form-control 
+                    .selectize-input, .input-sm, .form-group, .shiny-input-container, .form-control
                     { padding:0px 5px 0px 5px; margin-bottom: 0px; min-height: 25px; }
                     .selectize-control { padding:0px 0px 0px 0px; }
                     .item { font-size: 11px; }
-                    
+
                     /* rescale iframe contents */
-                    iframe { zoom: .667;
-                    -moz-transform: scale(1);
-                    -moz-transform-origin: 0 0;
-                    -o-transform: scale(1);
-                    -o-transform-origin: 0 0;
-                    -webkit-transform: scale(1.5);
-                    -webkit-transform-origin: 0 0;
-                    } 
-                    @media screen and (-webkit-min-device-pixel-ratio:0) { #scaled-frame { zoom: 1;} }
-                    
+                    iframe {
+                      zoom: .667;
+                      -webkit-zoom: .667;
+                      -ms-zoom: .667;
+                      -moz-transform: scale(.667, .667);
+                      -webkit-transform: scale(1);
+                      -o-transform: scale(1, 1);
+                      -ms-transform: scale(1.5, 1.5);
+                      transform: scale(1.5, 1.5);
+                      -moz-transform-origin: top left;
+                      -webkit-transform-origin: top left;
+                      -o-transform-origin: top left;
+                      -ms-transform-origin: top left;
+                      transform-origin: top left;
+                    }
+                    @media screen and (-webkit-min-device-pixel-ratio:0) { #scaled-frame { zoom: .667;} }
+
                     /* remove numericInput increment buttons */
-                    input[type=number]::-webkit-inner-spin-button, 
-                    input[type=number]::-webkit-outer-spin-button { 
-                    -webkit-appearance: none; 
-                    margin: 0; 
+                    input[type=number]::-webkit-inner-spin-button,
+                    input[type=number]::-webkit-outer-spin-button {
+                    -webkit-appearance: none;
+                    margin: 0;
                     }
                     "))
     ),
@@ -229,18 +281,21 @@ ui <- fluidPage(
   bsTooltip(id = 'timeline_hours', title = 'Specify period in most recent hours', placement = "bottom", trigger = "hover"),
   bsTooltip(id = 'timeline_daterange', title = '(Functions when "Hours" is blank.) By default GDELT reports the most recent ~3 months, but you can specify any date range within this window', placement = "bottom", trigger = "hover"),
   bsTooltip(id = 'smooth', title = 'Line smooth option, using rolling average method', placement = "bottom", trigger = "hover"),
-  bsTooltip(id = 'max_records', title = 'GDELT will return 75 by default, but this can be increased to 250', placement = "left", trigger = "hover"),
+  bsTooltip(id = 'max_records', title = 'GDELT will return 75 by default, but this can be increased to 250', placement = "right", trigger = "hover"),
+  bsTooltip(id = 'data_format', title = 'Specify format for data export', placement = "top", trigger = "hover"),
   bsTooltip(id = 'geo_near', title = 'Returns all matches within a certain radius (bounding box) of a given point. You specify a particular latitude and longitude and distance in either miles (default) or kms (e.g. for 100km from Paris "48.85,2.35,100km")', placement = "top", trigger = "hover"),
   bsTooltip(id = 'timespan', title = 'The geo portal searches the past 24 hours (1,440 mins), but this can be reduced further to a minimum timespan of 15 mins', placement = "top", trigger = "hover"),
   bsTooltip(id = 'geo_cc', title = 'Specify country of media mentions', placement = "top", trigger = "hover"),
   bsTooltip(id = 'geo_adm1', title = 'Specify ADM1 (top sub-national) geographical region of media mentions', placement = "top", trigger = "hover"),
   bsTooltip(id = 'geo_loc', title = 'Searches for a given word or phrase in the full formal name of the location - e.g. New York', placement = "top", trigger = "hover"),
+  bsTooltip(id = 'geo_format', title = 'Specify format for data export', placement = "top", trigger = "hover"),
+  bsTooltip(id = 'tab-6471-3', title = 'Specify format for data export', placement = "top", trigger = "hover"),
   
   sidebarLayout(
     sidebarPanel(width = 4,
                  fluidRow(
                    column(3, h3("GDELT Project")),
-                   column(9, p("GDELT monitors the world's news media in print, broadcast and web in 100+ languages. Monitoring uses machine-translation, so you can search globally in English (or ", a('supported', href = 'http://data.gdeltproject.org/api/v2/guides/LOOKUP-LANGUAGES.TXT', target="_blank")," other) for local-language content. (", a('GDELT home', href = 'https://www.gdeltproject.org/', target="_blank"), '/', a('reference', href = 'https://blog.gdeltproject.org/gdelt-doc-2-0-api-debuts/', target="_blank"), ')'))
+                   column(9, p(a('GDELT', href = 'https://www.gdeltproject.org/', target="_blank"), " is a web search tool that offers more intelligent ways to find what you want. Search globally in English for local-language content. Find articles based on features in accompanying imagery. (", a('See documentation', href = 'https://blog.gdeltproject.org/gdelt-doc-2-0-api-debuts/', target="_blank"), ')'))
                  ),
                  
                  # INPUTS
@@ -281,22 +336,19 @@ ui <- fluidPage(
                              tabPanel("CONTENT",
                                       br(),
                                       fluidRow(
-                                        column(10, selectInput(inputId = 'content_mode', label = 'Visualisation options', choices = content_modes, selected = 'Volume'), style=pad),
-                                        column(2, sliderInput('max_records', 'Records', min=75, max=250, step=5, value=75), style=pad)
-                                      )
+                                        column(10, selectInput(inputId = 'content_mode', label = 'Visualisation options', choices = content_modes, selected = 'Volume'), style=pad)
+                                      ),
+                                      br()
                              ),
                              tabPanel("TIMELINE", 
-                                      br(), p('Timeline-based stats/data for matching media activity'),
+                                      br(), #p('Timeline-based stats/data for matching media activity'),
                                       fluidRow(
-                                        column(12, selectInput(inputId = 'timeline_mode', label = 'Statistic', choices = timeline_modes, selected = 'Volume'), style=pad)
-                                      ),
-                                      fluidRow(
-                                        column(3, sliderInput('smooth', 'Smooth', 0, 5, 3, step = 1), style=pad),
-                                        column(4, selectInput(inputId = 'timeline_data', label = 'Data', choices = c('','csv','rss','json','jsonp'), selected = ''), style=pad)
+                                        column(10, selectInput(inputId = 'timeline_mode', label = 'Statistic', choices = timeline_modes, selected = 'Volume'), style=pad),
+                                        column(2, sliderInput('smooth', 'Smooth', 0, 5, 3, step = 1), style=pad)
                                       )
                              ),
-                             tabPanel("GEO24", 
-                                      br(), p('Geographic portal for matching media activity in the past 24 hours'),
+                             tabPanel("GEO24",
+                                      br(), #p('Geographic portal for matching media activity in the past 24 hours'),
                                       fluidRow(
                                         column(12, selectInput(inputId = 'geo_mode', label = 'Geo mode', choices = geo_modes, selected = ''), style=pad)
                                       ),
@@ -312,10 +364,17 @@ ui <- fluidPage(
                                       )
                              )
                  ),
-                 uiOutput('url')
+                 fluidRow(
+                   column(3, sliderInput('max_records', 'Records', min=75, max=250, step=5, value=75), style=pad),
+                   column(4, selectInput(inputId = 'data_format', label = 'Format', choices = c('','csv','rss','json','jsonp'), selected = ''), style=pad)
+                 ),
+                 hr(), uiOutput('url')
     ),
     mainPanel(width = 8,
-              uiOutput('plot_title'),
+              fluidRow(
+                column(11, uiOutput('plot_title')),
+                column(1, actionButton("help", "Help"))
+              ),
               fluidRow(htmlOutput("frame"))
     )
   )
