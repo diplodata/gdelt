@@ -293,11 +293,9 @@ ui <- fluidPage(
   
   sidebarLayout(
     sidebarPanel(width = 4,
-                 fluidRow(
-                   column(3, h3("GDELT Project")),
-                   column(9, p(a('GDELT', href = 'https://www.gdeltproject.org/', target="_blank"), " is a web search tool that offers more intelligent ways to find what you want. Search globally in English for local-language content. Find articles based on features in accompanying imagery. (", a('See documentation', href = 'https://blog.gdeltproject.org/gdelt-doc-2-0-api-debuts/', target="_blank"), ')'))
-                 ),
-                 
+                 fluidRow( column(12, h3("GDELT Project"))),
+                 fluidRow( column(12, p(a('GDELT', href = 'https://www.gdeltproject.org/', target="_blank"), " is a web search tool offering more intelligent ways to find what you want.", a(href = '#', 'How to use it.', onclick = "$('#help').trigger('click');"), a('Full documentation.', href = 'https://blog.gdeltproject.org/gdelt-doc-2-0-api-debuts/', target="_blank")))),
+
                  # INPUTS
                  hr(),
                  tabsetPanel(id = 'input_tab',
