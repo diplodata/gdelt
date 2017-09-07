@@ -6,6 +6,7 @@ require(shiny)
 require(shinyBS)
 require(shinyjs)
 require(shinythemes)
+require(V8)
 require(dplyr)
 require(stringr)
 require(lubridate)
@@ -344,7 +345,7 @@ pad = 'padding:0px 5px 0px 5px;'
 
 # code to append app arguments to the URL
 urlCode <- "shinyjs.pageURL = function(params){
-if(params[0] != ''){ location.href = location.origin + '/#' + params[0]; }
+if(params[0] != ''){ location.href = location.origin + location.pathname.slice(0, -1) + '/#' + params[0]; }
 }"
 
 ui <- fluidPage(
