@@ -11,6 +11,7 @@ require(stringr)
 require(lubridate)
 
 # setwd('~/Documents/shinyapps.io/gdelt/')
+tab = 'CONTENT'
 
 # some time calculation functions
 now = as.Date(Sys.Date())
@@ -23,6 +24,7 @@ add_hours = function(d, n){
   d <- ymd_hms(d)
   d %m+% minutes(n*60)
 }
+rf_date = function(x) paste0(substr(x,1,4), '-', substr(x,5,6), '-', substr(x,7,8))
 
 # function to translate logical inputs into a search string
 format_search_str = function(x, mode){
@@ -81,7 +83,7 @@ themes = read.csv('http://data.gdeltproject.org/api/v2/guides/LOOKUP-GKGTHEMES.T
 adm1 = read.csv('http://data.gdeltproject.org/api/v2/guides/LOOKUP-ADM1S.TXT', header=F, sep='\t', stringsAsFactors = F)
 adm1 = c('', setNames(as.character(adm1$V1), adm1$V2))
 
-#------------------------------------------------------------
+# SERVER --------------------------------------------------------------------------------
 
 server <- function(input, output, session) {
   
@@ -117,7 +119,6 @@ server <- function(input, output, session) {
     } else{ # params not supported by GEO API
       if(input$search_lang != '') search = paste0(search, '%20searchlang:', input$search_lang)
     }
-    
     # logically build up full URL, incorporating API search string
     if(input$output_tab == 'GEO24'){ # GEO MODE
       url = paste0(geo_root, search, '&mode=', input$geo_mode)
@@ -148,6 +149,11 @@ server <- function(input, output, session) {
       if(input$data_format != '') url = paste0(url, '&format=', input$data_format)
       url = paste0(url, '&startdatetime=', start_date, '&enddatetime=', end_date)
     }
+    
+    # append args to URL in browser
+    url_args = paste0('?', str_extract(url, '[a-z]+.[a-z]+[?]query=.*')) %>% 
+      paste0('&tm=', ifelse(is.na(input$timeline_hours), 'd', paste0('h', input$timeline_hours)))
+    js$pageURL(url_args)
     
     # Manage widget fuctionality
     if(input$output_tab == 'GEO24'){
@@ -183,8 +189,107 @@ server <- function(input, output, session) {
       new_iframe <- tags$iframe(src = url, width = w, height = h)
       new_iframe
     })
-    
   })
+  
+  # hash --------------------------------------------------------------------------------
+  
+  # initialise widgets according to hash arguments if provided
+  # This whole horrible code section can be removed if necessary
+  observeEvent(session$clientData$url_hash, {
+    hash = gsub(pattern = "#", replacement = "", x = session$clientData$url_hash)
+    if(hash == '') return() # no hash provided
+    hash_args = parseQueryString(hash)
+    
+    # interpret query param (i.e. disaggregate query, imagetag and theme args)
+    if(!str_detect(names(hash_args)[1], 'query')) warning('1st hash param is not query')
+    if(hash_args[[1]] != ''){
+      if(str_detect(hash_args[[1]], 'location:')){ # fix problem of spaces in location entries
+        location_arg = str_extract(hash_args[[1]], 'location:"[a-zA-Z ]+"')
+        hash_args[[1]] = str_replace(hash_args[[1]], 'location:"[a-zA-Z ]+"', str_replace_all(location_arg,' ','_'))
+      }
+      if(str_detect(hash_args[[1]], '[()]')){ # fix problem of OR login in brackets
+        or_search_arg = str_extract(hash_args[[1]], '[(][a-zA-Z ]+[)]')
+        hash_args[[1]] = str_replace(hash_args[[1]], '[(][a-zA-Z ]+[)]', str_replace_all(or_search_arg,' ','_'))
+      }
+      # parse search string for its arguments
+      full_qry = hash_args[[1]] %>% str_replace_all(' OR ', ' ') %>% 
+        str_replace_all('[ ]+', ' ') %>% str_split(' ') %>% .[[1]] %>% as_data_frame()
+      # search
+      search_qry = full_qry %>% filter(!str_detect(value, ':')) %>%   
+        .[['value']] %>% paste(collapse = ' ') %>% str_replace_all('_', ' ')
+      updateTextInput(session = session, inputId = 'search_terms', value = search_qry)
+      # image
+      image_qry = full_qry %>% filter(str_detect(value, 'imagewebtag:')) %>% 
+        mutate(value = str_replace_all(value, '(imagewebtag:)|(")', '')) %>% .[['value']]
+      updateSelectizeInput(session = session, inputId = 'image_tags', selected = image_qry[1]) # no effect
+      # theme
+      # theme_qry = full_qry %>% filter(str_detect(value, 'theme')) %>% .[['value']]
+      # domain
+      domain_qry = full_qry %>% filter(str_detect(value, 'domain:')) %>% 
+        mutate(value = str_replace(value, 'domain:', '')) %>% .[['value']] %>% paste(collapse = ',')
+      updateTextInput(session = session, inputId = 'search_domain', value = domain_qry)
+      # sourcecountry
+      sourcecountry_qry = full_qry %>% filter(str_detect(value, 'sourcecountry:')) %>% 
+        mutate(value = str_replace(value, 'sourcecountry:', '')) %>% .[['value']]
+      updateSelectInput(session = session, inputId = 'search_country', selected = sourcecountry_qry)
+      # searchlang
+      searchlang_qry = full_qry %>% filter(str_detect(value, 'searchlang:')) %>% 
+        mutate(value = str_replace(value, 'searchlang:', '')) %>% .[['value']]
+      updateSelectInput(session = session, inputId = 'search_lang', selected = searchlang_qry)
+      # sourcelang
+      sourcelang_qry = full_qry %>% filter(str_detect(value, 'sourcelang:')) %>% 
+        mutate(value = str_replace(value, 'sourcelang:', '')) %>% .[['value']]
+      updateSelectInput(session = session, inputId = 'source_lang', selected = sourcelang_qry)
+      # locationcc
+      locationcc_qry = full_qry %>% filter(str_detect(value, 'locationcc:')) %>% 
+        mutate(value = str_replace(value, 'locationcc:', '')) %>% .[['value']]
+      updateSelectInput(session = session, inputId = 'geo_cc', selected = locationcc_qry)
+      # adm1
+      locationadm1_qry = full_qry %>% filter(str_detect(value, 'locationadm1:')) %>% 
+        mutate(value = str_replace(value, 'locationadm1:', '')) %>% .[['value']]
+      updateSelectizeInput(session = session, inputId = 'geo_adm1', selected = locationadm1_qry) # no effect
+      # location
+      location_qry = full_qry %>% filter(str_detect(value, 'location:')) %>% 
+        mutate(value = str_replace(value, 'location:', '')) %>% .[['value']] %>% 
+        str_replace_all('"','') %>% str_replace_all('_', ' ')
+      updateTextInput(session = session, inputId = 'geo_loc', value = location_qry)
+      # location
+      geo_near_qry = full_qry %>% filter(str_detect(value, 'near:')) %>% 
+        mutate(value = str_replace(value, 'near:', '')) %>% .[['value']]
+      updateTextInput(session = session, inputId = 'geo_near', value = geo_near_qry)
+      # dates
+      if(hash_args$tm == 'd'){
+        updateNumericInput(session = session, inputId = 'timeline_hours', value = NA)
+        updateDateRangeInput(session=session, inputId = 'timeline_daterange', 
+                             start = rf_date(hash_args$startdatetime), end = rf_date(hash_args$enddatetime))
+      } else{
+        updateNumericInput(session = session, inputId = 'timeline_hours', value = str_extract(hash_args$tm, '[0-9]+'))
+      }
+      if(!is.null(hash_args$timespan)) updateNumericInput(session=session, inputId = 'timespan', value = hash_args$timespan)
+      if(!is.null(hash_args$maxrecords)) updateSliderInput(session=session, inputId = 'max_records', value = hash_args$maxrecords)
+      if(!is.null(hash_args$TIMELINESMOOTH)) updateSliderInput(session=session, inputId = 'smooth', value = hash_args$TIMELINESMOOTH)
+      if(!is.null(hash_args$format)){ # widget depends on API used
+        if(str_detect(names(hash_args)[1], 'geo/geo')){
+          updateSelectInput(session=session, inputId = 'geo_format', selected = hash_args$format)
+        } else updateSelectInput(session=session, inputId = 'data_format', selected = hash_args$format)
+      }
+    }
+    # output tab and mode
+    if(!is.null(hash_args$mode)){ 
+      if(hash_args$mode %in% content_modes){
+        tab = 'CONTENT' #content_mode
+        updateSelectInput(session = session, inputId = 'content_mode', selected = hash_args$mode)
+      } else if(hash_args$mode %in% timeline_modes){
+        tab = 'TIMELINE'
+        updateSelectInput(session = session, inputId = 'timeline_mode', selected = hash_args$mode)
+      } else if(hash_args$mode %in% geo_modes){
+        tab = 'GEO24'
+        updateSelectInput(session = session, inputId = 'geo_mode', selected = hash_args$mode)
+      }
+      updateTabsetPanel(session = session, inputId = "output_tab", selected = tab)
+    }
+  }, once = T)
+  
   
   # Help dialogue
   observeEvent(input$help, {
@@ -232,8 +337,15 @@ server <- function(input, output, session) {
   })
 }
 
-#--------------------------------------------------------------------------------
+# UI --------------------------------------------------------------------------------
+
+
 pad = 'padding:0px 5px 0px 5px;'
+
+# code to append app arguments to the URL
+urlCode <- "shinyjs.pageURL = function(params){
+if(params[0] != ''){ location.href = location.origin + '/#' + params[0]; }
+}"
 
 ui <- fluidPage(
   theme = shinytheme("flatly"),
@@ -311,6 +423,11 @@ ui <- fluidPage(
   bsTooltip(id = 'geo_format', title = 'Specify format for data export', placement = "top", trigger = "hover"),
   bsTooltip(id = 'tab-6471-3', title = 'Specify format for data export', placement = "top", trigger = "hover"),
   
+  # push arguments to URL
+  extendShinyjs(text = urlCode),
+  
+  # UI - layout --------------------------------------------------------------------------------
+  
   sidebarLayout(
     sidebarPanel(width = 4,
                  fluidRow( column(12, h3("GDELT Project"))),
@@ -350,7 +467,7 @@ ui <- fluidPage(
                  
                  # OUTPUTS       
                  hr(),
-                 tabsetPanel(id = 'output_tab',
+                 tabsetPanel(id = 'output_tab', selected = tab,
                              tabPanel("CONTENT",
                                       br(),
                                       fluidRow(
@@ -399,4 +516,5 @@ ui <- fluidPage(
 )
 
 shinyApp(ui, server)
+# shinyApp(ui, server, options = list(launch.browser=F))
 
