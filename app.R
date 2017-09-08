@@ -123,20 +123,22 @@ server <- function(input, output, session) {
     # logically build up full URL, incorporating API search string
     if(input$output_tab == 'GEO24'){ # GEO MODE
       url = paste0(geo_root, search, '&mode=', input$geo_mode)
-      if(input$timespan != 1440) url = paste0(url, '&timespan=', input$timespan) # timespan in mins
+      if(input$geo_timespan != 1440) url = paste0(url, '&timespan=', input$geo_timespan) # timespan in mins
       if(input$geo_format != '') url = paste0(url, '&format=', input$geo_format) # output format
     } else{
       # CONTENT or TIMELINE modes
       # date params
-      shinyjs::enable("timeline_daterange")
-      if(is.na(input$timeline_hours)){ # period defined by date range
-        end_date = ifelse(input$timeline_daterange[2] == as.character(today()),
+      shinyjs::enable("daterange")
+      if(is.na(input$timespan)){       # period defined by date range
+        end_date = ifelse(input$daterange[2] == as.character(today()),
                           format(Sys.time(), '%Y%m%d%H%M%S'), 
-                          format(as.Date(input$timeline_daterange[2]), paste0('%Y%m%d', '235959')))
-        start_date = format(as.Date(input$timeline_daterange[1]), paste0('%Y%m%d', '000000'))
-      } else{                         # period defined in past hours
-        end_date = format(Sys.time(), '%Y%m%d%H%M%S')
-        start_date = format(add_hours(Sys.time(), -round(input$timeline_hours,1)), '%Y%m%d%H%M%S')
+                          format(as.Date(input$daterange[2]), paste0('%Y%m%d', '235959')))
+        start_date = format(as.Date(input$daterange[1]), paste0('%Y%m%d', '000000'))
+        timespan = ''
+      } else{                          # period defined in past hours
+        if(str_detect(input$timespan, fixed('.'))){ # i.e. use minutes
+          timespan = paste0('&timespan=', max(15, floor(input$timespan * 60))) 
+        } else timespan = paste0('&timespan=', input$timespan, 'h')
       }
       
       # build URL
@@ -144,30 +146,30 @@ server <- function(input, output, session) {
       if(input$output_tab == 'CONTENT'){
         url = paste0(url, '&mode=', input$content_mode)
       } else if(input$output_tab == 'TIMELINE'){
-        url = paste0(url, '&mode=', input$timeline_mode, '&TIMELINESMOOTH=', input$smooth)
+        url = paste0(url, '&mode=', input$timeline_mode, '&timelinesmooth=', input$smooth)
       }
       if(input$max_records > 75) url = paste0(url, '&maxrecords=', input$max_records)
       if(input$data_format != '') url = paste0(url, '&format=', input$data_format)
-      url = paste0(url, '&startdatetime=', start_date, '&enddatetime=', end_date)
+      url = ifelse(timespan != '', paste0(url, timespan),
+                   paste0(url, '&startdatetime=', start_date, '&enddatetime=', end_date))
     }
     
     # append args to URL in browser
-    url_args = paste0('?', str_extract(url, '[a-z]+.[a-z]+[?]query=.*')) %>% 
-      paste0('&tm=', ifelse(is.na(input$timeline_hours), 'd', paste0('h', input$timeline_hours)))
+    url_args = paste0('?', str_extract(url, '[a-z]+.[a-z]+[?]query=.*'))
     js$pageURL(url_args)
+
+    # render to interface for reference and external use
+    output$gdelt_url = renderUI({ HTML(paste0("<a id='gdelt_url' href='", url, "' target='_blank'>", str_replace(url, '&times', '&amp;times'), "</a>"))})
     
     # Manage widget fuctionality
     if(input$output_tab == 'GEO24'){
-      for(i in c('timeline_daterange', 'timeline_hours', 'search_lang')) shinyjs::disable(i)
+      for(i in c('daterange', 'timespan', 'search_lang')) shinyjs::disable(i)
       for(i in c('max_records', 'data_format')) shinyjs::hide(i)
     } else{
-      for(i in c('timeline_daterange', 'timeline_hours', 'search_lang')) shinyjs::enable(i)
+      for(i in c('daterange', 'timespan', 'search_lang')) shinyjs::enable(i)
       for(i in c('max_records', 'data_format')) shinyjs::show(i)
-      if(is.na(input$timeline_hours)) shinyjs::enable("timeline_daterange") else shinyjs::disable("timeline_daterange")
+      if(is.na(input$timespan)) shinyjs::enable("daterange") else shinyjs::disable("daterange")
     }
-    
-    # render to interface for reference and external use
-    output$url = renderUI({ HTML(paste0('<p style="color:#999;font-size: 90%; word-wrap: break-word;">', url, '</p><p  style="color:#999;font-size: 80%;">(2017 Robin Edwards. This site is an interface to the GDELT API but has has no formal affiliation.)</p>')) })
     
     # Title to detail search parameters
     search_title = ''
@@ -258,17 +260,12 @@ server <- function(input, output, session) {
       geo_near_qry = full_qry %>% filter(str_detect(value, 'near:')) %>% 
         mutate(value = str_replace(value, 'near:', '')) %>% .[['value']]
       updateTextInput(session = session, inputId = 'geo_near', value = geo_near_qry)
-      # dates
-      if(hash_args$tm == 'd'){
-        updateNumericInput(session = session, inputId = 'timeline_hours', value = NA)
-        updateDateRangeInput(session=session, inputId = 'timeline_daterange', 
-                             start = rf_date(hash_args$startdatetime), end = rf_date(hash_args$enddatetime))
-      } else{
-        updateNumericInput(session = session, inputId = 'timeline_hours', value = str_extract(hash_args$tm, '[0-9]+'))
+      # daterange
+      if(!is.null(hash_args$startdatetime)){
+        updateDateRangeInput(session=session, inputId = 'daterange', start = rf_date(hash_args$startdatetime), end = rf_date(hash_args$enddatetime))
       }
-      if(!is.null(hash_args$timespan)) updateNumericInput(session=session, inputId = 'timespan', value = hash_args$timespan)
       if(!is.null(hash_args$maxrecords)) updateSliderInput(session=session, inputId = 'max_records', value = hash_args$maxrecords)
-      if(!is.null(hash_args$TIMELINESMOOTH)) updateSliderInput(session=session, inputId = 'smooth', value = hash_args$TIMELINESMOOTH)
+      if(!is.null(hash_args$timelinesmooth)) updateSliderInput(session=session, inputId = 'smooth', value = hash_args$timelinesmooth)
       if(!is.null(hash_args$format)){ # widget depends on API used
         if(str_detect(names(hash_args)[1], 'geo/geo')){
           updateSelectInput(session=session, inputId = 'geo_format', selected = hash_args$format)
@@ -276,16 +273,26 @@ server <- function(input, output, session) {
       }
     }
     # output tab and mode
-    if(!is.null(hash_args$mode)){ 
-      if(hash_args$mode %in% content_modes){
-        tab = 'CONTENT' #content_mode
-        updateSelectInput(session = session, inputId = 'content_mode', selected = hash_args$mode)
-      } else if(hash_args$mode %in% timeline_modes){
-        tab = 'TIMELINE'
-        updateSelectInput(session = session, inputId = 'timeline_mode', selected = hash_args$mode)
-      } else if(hash_args$mode %in% geo_modes){
+    if(!is.null(hash_args$mode)){ # although else should not happen
+      
+      if(hash_args$mode %in% geo_modes){
         tab = 'GEO24'
         updateSelectInput(session = session, inputId = 'geo_mode', selected = hash_args$mode)
+        # geo timespan
+        if(!is.null(hash_args$timespan)) updateNumericInput(session=session, inputId = 'geo_timespan', value = hash_args$timespan)
+      } else{ # content or timeline mode
+        if(hash_args$mode %in% content_modes){
+          tab = 'CONTENT' 
+          updateSelectInput(session = session, inputId = 'content_mode', selected = hash_args$mode)
+        } else {
+          tab = 'TIMELINE'
+          updateSelectInput(session = session, inputId = 'timeline_mode', selected = hash_args$mode)
+        }
+        # content/timeline timespan
+        if(!is.null(hash_args$timespan)){
+          qry_timespan = ifelse(str_detect(hash_args$timespan, 'h'), str_extract(hash_args$timespan, '[0-9]+'), round(as.numeric(hash_args$timespan)/60,2))
+          updateNumericInput(session=session, inputId = 'timespan', value = qry_timespan)
+        }
       }
       updateTabsetPanel(session = session, inputId = "output_tab", selected = tab)
     }
@@ -368,6 +375,9 @@ ui <- fluidPage(
   tags$head(
     # custom css
     tags$style(HTML("
+                    #sidebar { height: 100vh; overflow-y: auto; }
+                    body { overflow:hidden; }
+
                     /* compress widgets a bit to fit on page */
                     hr {border-top: 1px solid #000; margin-top: 8px; margin-bottom: 12px; }
                     .form-control {height: 25px; margin-bottom: 0px;}
@@ -400,6 +410,7 @@ ui <- fluidPage(
                     -webkit-appearance: none;
                     margin: 0;
                     }
+                    #gdelt_url { color:#999; font-size: 90%; word-wrap: break-word; line-height: 100%; }
                     "))
     ),
   # Custom tooltips for widgets
@@ -411,13 +422,13 @@ ui <- fluidPage(
   bsTooltip(id = 'search_country', title = 'Country of media origin', placement = "top", trigger = "hover"),
   bsTooltip(id = 'search_domain', title = 'Internet domain of origin. Accepts multiple domains seperated by commas.', placement = "top", trigger = "hover"),
   bsTooltip(id = 'source_lang', title = 'Language of content. You can specify e.g. French but use search terms in English. GDELT handles the interpretation', placement = "top", trigger = "hover"),
-  bsTooltip(id = 'timeline_hours', title = 'Specify period in most recent hours', placement = "bottom", trigger = "hover"),
-  bsTooltip(id = 'timeline_daterange', title = '(Functions when "Hours" is blank.) By default GDELT reports the most recent ~3 months, but you can specify any date range within this window', placement = "bottom", trigger = "hover"),
+  bsTooltip(id = 'timespan', title = 'Specify period in most recent hours', placement = "bottom", trigger = "hover"),
+  bsTooltip(id = 'daterange', title = '(Functions when "Hours" is blank.) By default GDELT reports the most recent ~3 months, but you can specify any date range within this window', placement = "bottom", trigger = "hover"),
   bsTooltip(id = 'smooth', title = 'Line smooth option, using rolling average method', placement = "bottom", trigger = "hover"),
   bsTooltip(id = 'max_records', title = 'GDELT will return 75 by default, but this can be increased to 250', placement = "right", trigger = "hover"),
   bsTooltip(id = 'data_format', title = 'Specify format for data export', placement = "top", trigger = "hover"),
   bsTooltip(id = 'geo_near', title = 'Returns all matches within a certain radius (bounding box) of a given point. You specify a particular latitude and longitude and distance in either miles (default) or kms (e.g. for 100km from Paris "48.85,2.35,100km")', placement = "top", trigger = "hover"),
-  bsTooltip(id = 'timespan', title = 'The geo portal searches the past 24 hours (1,440 mins), but this can be reduced further to a minimum timespan of 15 mins', placement = "top", trigger = "hover"),
+  bsTooltip(id = 'geo_timespan', title = 'The geo portal searches the past 24 hours (1,440 mins), but this can be reduced further to a minimum timespan of 15 mins', placement = "top", trigger = "hover"),
   bsTooltip(id = 'geo_cc', title = 'Specify country of media mentions', placement = "top", trigger = "hover"),
   bsTooltip(id = 'geo_adm1', title = 'Specify ADM1 (top sub-national) geographical region of media mentions', placement = "top", trigger = "hover"),
   bsTooltip(id = 'geo_loc', title = 'Searches for a given word or phrase in the full formal name of the location - e.g. New York', placement = "top", trigger = "hover"),
@@ -426,11 +437,11 @@ ui <- fluidPage(
   
   # push arguments to URL
   extendShinyjs(text = urlCode),
-  
+
   # UI - layout --------------------------------------------------------------------------------
   
   sidebarLayout(
-    sidebarPanel(width = 4,
+    sidebarPanel(width = 4, id = 'sidebar',
                  fluidRow( column(12, h3("GDELT Project"))),
                  fluidRow( column(12, p(a('GDELT', href = 'https://www.gdeltproject.org/', target="_blank"), " is a web search tool offering more intelligent ways to find what you want.", a(href = '#', 'How to use it.', onclick = "$('#help').trigger('click');"), a('Full documentation.', href = 'https://blog.gdeltproject.org/gdelt-doc-2-0-api-debuts/', target="_blank")))),
 
@@ -459,10 +470,10 @@ ui <- fluidPage(
                    column(6, textInput(inputId = 'search_domain', label = 'Domain', value = '', placeholder = 'e.g. "bbc.co.uk"'), style=pad)
                  ),
                  fluidRow(
-                   column(6, dateRangeInput(inputId = "timeline_daterange", label = "Date range",
+                   column(6, dateRangeInput(inputId = "daterange", label = "Date range",
                                             start = add_days(now, -82), end = now,
                                             min = add_days(now, -82), max = now), style=pad),
-                   column(2, numericInput(inputId = 'timeline_hours', label='Hours', value='24', min=.25, ), style=pad),
+                   column(2, numericInput(inputId = 'timespan', label='Hours', value='24', min=.25, ), style=pad),
                    column(4, selectizeInput(inputId = 'source_lang', label = 'SourceLang', choices = lang_codes, multiple = T, options=list(create = T)), style=pad)
                  ),
                  
@@ -489,7 +500,7 @@ ui <- fluidPage(
                                         column(12, selectInput(inputId = 'geo_mode', label = 'Geo mode', choices = geo_modes, selected = ''), style=pad)
                                       ),
                                       fluidRow(
-                                        column(4, sliderInput('timespan', 'Timespan', 15, 1440, 1440, step = 5), style=pad),
+                                        column(4, sliderInput('geo_timespan', 'Time (m)', 15, 1440, 1440, step = 5), style=pad),
                                         column(4, selectInput(inputId = 'geo_format', label = 'Format', choices = c('','HTML','ImageHTML','ImageHTMLShow','GeoJSON','ImageGeoJSON'), selected = ''), style=pad),
                                         column(4, textInput(inputId = 'geo_near', label = 'Near', value = ''), style=pad)
                                       ),
@@ -504,7 +515,10 @@ ui <- fluidPage(
                    column(3, sliderInput('max_records', 'Records', min=75, max=250, step=5, value=75), style=pad),
                    column(4, selectInput(inputId = 'data_format', label = 'Format', choices = c('','csv','rss','json','jsonp'), selected = ''), style=pad)
                  ),
-                 hr(), uiOutput('url')
+                 hr(),
+                 # uiOutput('url'),
+                 uiOutput('gdelt_url'), br(),
+                 p('2017 by Robin Edwards. This site is an interface to the GDELT API but has has no formal affiliation.', id='footer', style="color:#999;font-size: 80%;")
     ),
     mainPanel(width = 8,
               fluidRow(
