@@ -52,26 +52,32 @@ content_modes = c('MEDIA - a simple list of news articles that matched the searc
                   'IMAGE COLLAGE - matching images. Most relevant when used with the image-related search terms.' = 'ImageCollage',
                   'IMAGE COLLAGE INFO - as for IMAGE COLLAGE but includes links' = 'ImageCollageInfo',
                   'IMAGE GALLERY - alternative layout to IMAGE COLLAGE INFO' = 'ImageGallery',
-                  'IMAGE COLLAGE SHARE - lists social sharing images found in the matching articles, where present.' = 'ImageCollageShare')
+                  'IMAGE COLLAGE SHARE - lists social sharing images found in the matching articles, where present.' = 'ImageCollageShare',
+                  'WORDCLOUD ENGLISH - wordcloud of English translations of most relevant articles.' = 'WordCloudEnglish',
+                  'WORDCLOUD NATIVE - wordcloud of most relevant articles (author language).' = 'WordCloudNative',
+                  'WORDCLOUD THEME - histogram of the GDELT GKG Themes assigned to each article.' = 'WordCloudTheme',
+                  'WORDCLOUD IMAGE TAGS - histogram of image tags assigned by Google\'s Cloud Vision algorithms.' = 'WordCloudImageTags',
+                  'WORDCLOUD IMAGE WEB-TAGS - as above, but based on taxonomy tags assigned by Google CV based on captions identified via reverse Google Images searches.' = 'WordCloudImageWebTags',
+                  'TONE CHART - emotional histogram showing the tonal distribution of coverage of your query. Articles typically score within ±20 (max ±100).' = 'ToneChart')
 
 timeline_modes = c('VOLUME - % of global news coverage' = 'TimelineVol', 
-                   'VOLUMEINFO - as VOLUME but includes interactive URL links to top sources' = 'TimelineVolInfo', 
+                   'VOLUME INFO - as VOLUME but includes interactive URL links to top sources' = 'TimelineVolInfo', 
                    'SENTIMENT - average "tone" of all matching coverage' = 'TimelineTone',
                    'LANGUAGE - volume breakdown by language (65 supported)' = 'TimelineLang',
                    'SOURCE COUNTRY - which countries are focusing the most on the topic' = 'TimelineSourceCountry')
 
-geo_modes = c('POINTDATA - displays a dot at each location mentioned in proximity to your search term. Image functionality is disabled' = 'PointData',
-              'IMAGEPOINTDATA - as above, but for image searches. Search terms are disabled' = 'ImagePointData',
-              'POINTHEATMAP - heatmap of the locations most closely associated with your search term (GeoJSON only)' = 'PointHeatmap',
-              'IMAGEPOINTHEATMAP - as above, but for image searches' = 'ImagePointHeatmap',
-              'POINTANIMATION - a series of heatmaps in 15 minute increments over the past 24 hours (GeoJSON only)' = 'PointAnimation',
-              'IMAGEPOINTANIMATION - as above, but for image searches' = 'ImagePointAnimation',
+geo_modes = c('POINT-DATA - displays a dot at each location mentioned in proximity to your search term. Image functionality is disabled' = 'PointData',
+              'IMAGE POINT-DATA - as above, but for image searches. Search terms are disabled' = 'ImagePointData',
+              'POINT HEATMAP - heatmap of the locations most closely associated with your search term (GeoJSON only)' = 'PointHeatmap',
+              'IMAGE POINT HEATMAP - as above, but for image searches' = 'ImagePointHeatmap',
+              'POINT ANIMATION - a series of heatmaps in 15 minute increments over the past 24 hours (GeoJSON only)' = 'PointAnimation',
+              'IMAGE POINT-ANIMATION - as above, but for image searches' = 'ImagePointAnimation',
               'COUNTRY - aggregates all locations to country level. Also performs normalization, dividing number of mentions in context of your search by total mentions' = 'Country',
-              'IMAGECOUNTRY - as above, but for image searches' = 'ImageCountry',
-              'SOURCECOUNTRY - reflects the country or origin of your search results' = 'SourceCountry',
-              'IMAGESOURCECOUNTRY - as above, but for image searches' = 'ImageSourceCountry',
+              'IMAGE COUNTRY - as above, but for image searches' = 'ImageCountry',
+              'SOURCE COUNTRY - reflects the country or origin of your search results' = 'SourceCountry',
+              'IMAGE SOURCE COUNTRY - as above, but for image searches' = 'ImageSourceCountry',
               'ADM1 - as COUNTRY but higher administrative granularity' = 'ADM1',
-              'IMAGEADM1 - as above, but for image searches' = 'ImageADM1')
+              'IMAGE ADM1 - as above, but for image searches' = 'ImageADM1')
 
 sort_options = c('', 'Date: newest first' = 'DateDesc', 'Date: oldest first' = 'DateAsc', 'Tone: most positive first' = 'ToneDesc', 'Tone: most negative first' = 'ToneAsc')
 
@@ -489,7 +495,7 @@ ui <- fluidPage(
                              tabPanel("CONTENT",
                                       br(),
                                       fluidRow(
-                                        column(10, selectInput(inputId = 'content_mode', label = 'Visualisation options', choices = content_modes, selected = 'Volume'), style=pad)
+                                        column(12, selectInput(inputId = 'content_mode', label = 'Visualisation options', choices = content_modes, selected = 'Volume'), style=pad)
                                       ),
                                       br()
                              ),
@@ -519,7 +525,7 @@ ui <- fluidPage(
                  ),
                  fluidRow(
                    column(3, sliderInput('max_records', 'Records', min=75, max=250, step=5, value=75), style=pad),
-                   column(3, selectInput(inputId = 'data_format', label = 'Format', choices = c('','csv','rss','json','jsonp'), selected = ''), style=pad),
+                   column(3, selectInput(inputId = 'data_format', label = 'Format', choices = c('','html','csv','rss','json','jsonp'), selected = ''), style=pad),
                    column(6, selectInput(inputId = 'data_sort', label = 'Sort', choices = sort_options, selected = ''), style=pad)
                  ),
                  hr(),
