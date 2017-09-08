@@ -167,11 +167,12 @@ server <- function(input, output, session) {
     # Manage widget fuctionality
     if(input$output_tab == 'GEO24'){
       for(i in c('daterange', 'timespan', 'search_lang')) shinyjs::disable(i)
-      for(i in c('max_records', 'data_format')) shinyjs::hide(i)
+      for(i in c('max_records', 'data_format', 'data_sort')) shinyjs::hide(i)
     } else{
       for(i in c('daterange', 'timespan', 'search_lang')) shinyjs::enable(i)
-      for(i in c('max_records', 'data_format')) shinyjs::show(i)
+      for(i in c('max_records', 'data_format', 'data_sort')) shinyjs::show(i)
       if(is.na(input$timespan)) shinyjs::enable("daterange") else shinyjs::disable("daterange")
+      if(input$output_tab == 'CONTENT') shinyjs::enable("data_sort") else shinyjs::disable("data_sort")
     }
     
     # Title to detail search parameters
@@ -431,6 +432,7 @@ ui <- fluidPage(
   bsTooltip(id = 'smooth', title = 'Line smooth option, using rolling average method', placement = "bottom", trigger = "hover"),
   bsTooltip(id = 'max_records', title = 'GDELT will return 75 by default, but this can be increased to 250', placement = "right", trigger = "hover"),
   bsTooltip(id = 'data_format', title = 'Specify format for data export', placement = "top", trigger = "hover"),
+  bsTooltip(id = 'data_sort', title = 'By default results are sorted by relevance. You can also sort by date or article tone instead', placement = "top", trigger = "hover"),
   bsTooltip(id = 'geo_near', title = 'Returns all matches within a certain radius (bounding box) of a given point. You specify a particular latitude and longitude and distance in either miles (default) or kms (e.g. for 100km from Paris "48.85,2.35,100km")', placement = "top", trigger = "hover"),
   bsTooltip(id = 'geo_timespan', title = 'The geo portal searches the past 24 hours (1,440 mins), but this can be reduced further to a minimum timespan of 15 mins', placement = "top", trigger = "hover"),
   bsTooltip(id = 'geo_cc', title = 'Specify country of media mentions', placement = "top", trigger = "hover"),
@@ -517,8 +519,8 @@ ui <- fluidPage(
                  ),
                  fluidRow(
                    column(3, sliderInput('max_records', 'Records', min=75, max=250, step=5, value=75), style=pad),
-                   column(4, selectInput(inputId = 'data_format', label = 'Format', choices = c('','csv','rss','json','jsonp'), selected = ''), style=pad),
-                   column(4, selectInput(inputId = 'data_sort', label = 'Sort', choices = sort_options, selected = ''), style=pad)
+                   column(3, selectInput(inputId = 'data_format', label = 'Format', choices = c('','csv','rss','json','jsonp'), selected = ''), style=pad),
+                   column(6, selectInput(inputId = 'data_sort', label = 'Sort', choices = sort_options, selected = ''), style=pad)
                  ),
                  hr(),
                  # uiOutput('url'),
