@@ -73,6 +73,8 @@ geo_modes = c('POINTDATA - displays a dot at each location mentioned in proximit
               'ADM1 - as COUNTRY but higher administrative granularity' = 'ADM1',
               'IMAGEADM1 - as above, but for image searches' = 'ImageADM1')
 
+sort_options = c('', 'Date: newest first' = 'DateDesc', 'Date: oldest first' = 'DateAsc', 'Tone: most positive first' = 'ToneDesc', 'Tone: most negative first' = 'ToneAsc')
+
 # Options selection lists to read in
 country_codes = read.csv('http://data.gdeltproject.org/api/v2/guides/LOOKUP-COUNTRIES.TXT', sep='\t', stringsAsFactors = F, header = F)
 country_codes = c('', setNames(as.character(country_codes$V1), country_codes$V2))
@@ -145,6 +147,7 @@ server <- function(input, output, session) {
       url = paste0(root, search)
       if(input$output_tab == 'CONTENT'){
         url = paste0(url, '&mode=', input$content_mode)
+        if(input$data_sort != '')  url = paste0(url, '&sort=', input$data_sort) # sort argument
       } else if(input$output_tab == 'TIMELINE'){
         url = paste0(url, '&mode=', input$timeline_mode, '&timelinesmooth=', input$smooth)
       }
@@ -260,18 +263,19 @@ server <- function(input, output, session) {
       geo_near_qry = full_qry %>% filter(str_detect(value, 'near:')) %>% 
         mutate(value = str_replace(value, 'near:', '')) %>% .[['value']]
       updateTextInput(session = session, inputId = 'geo_near', value = geo_near_qry)
-      # daterange
-      if(!is.null(hash_args$startdatetime)){
-        updateDateRangeInput(session=session, inputId = 'daterange', start = rf_date(hash_args$startdatetime), end = rf_date(hash_args$enddatetime))
-      }
-      if(!is.null(hash_args$maxrecords)) updateSliderInput(session=session, inputId = 'max_records', value = hash_args$maxrecords)
-      if(!is.null(hash_args$timelinesmooth)) updateSliderInput(session=session, inputId = 'smooth', value = hash_args$timelinesmooth)
-      if(!is.null(hash_args$format)){ # widget depends on API used
-        if(str_detect(names(hash_args)[1], 'geo/geo')){
-          updateSelectInput(session=session, inputId = 'geo_format', selected = hash_args$format)
-        } else updateSelectInput(session=session, inputId = 'data_format', selected = hash_args$format)
-      }
     }
+    # non-query arguments
+    if(!is.null(hash_args$startdatetime)){
+      updateDateRangeInput(session=session, inputId = 'daterange', start = rf_date(hash_args$startdatetime), end = rf_date(hash_args$enddatetime))
+    }
+    if(!is.null(hash_args$maxrecords)) updateSliderInput(session=session, inputId = 'max_records', value = hash_args$maxrecords)
+    if(!is.null(hash_args$timelinesmooth)) updateSliderInput(session=session, inputId = 'smooth', value = hash_args$timelinesmooth)
+    if(!is.null(hash_args$format)){ # widget depends on API used
+      if(str_detect(names(hash_args)[1], 'geo/geo')){
+        updateSelectInput(session=session, inputId = 'geo_format', selected = hash_args$format)
+      } else updateSelectInput(session=session, inputId = 'data_format', selected = hash_args$format)
+    }
+    if(!is.null(hash_args$sort)) updateSelectInput(session = session, inputId = 'data_sort', selected = hash_args$sort)
     # output tab and mode
     if(!is.null(hash_args$mode)){ # although else should not happen
       
@@ -513,7 +517,8 @@ ui <- fluidPage(
                  ),
                  fluidRow(
                    column(3, sliderInput('max_records', 'Records', min=75, max=250, step=5, value=75), style=pad),
-                   column(4, selectInput(inputId = 'data_format', label = 'Format', choices = c('','csv','rss','json','jsonp'), selected = ''), style=pad)
+                   column(4, selectInput(inputId = 'data_format', label = 'Format', choices = c('','csv','rss','json','jsonp'), selected = ''), style=pad),
+                   column(4, selectInput(inputId = 'data_sort', label = 'Sort', choices = sort_options, selected = ''), style=pad)
                  ),
                  hr(),
                  # uiOutput('url'),
