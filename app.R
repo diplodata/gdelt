@@ -14,6 +14,35 @@ require(lubridate)
 # setwd('~/Documents/shinyapps.io/gdelt/')
 tab = 'CONTENT'
 
+gt_code = "<body>
+<div id='google_translate_element'></div><script type='text/javascript'>
+function googleTranslateElementInit() {
+new google.translate.TranslateElement({pageLanguage: 'en', layout: google.translate.TranslateElement.InlineLayout.SIMPLE, multilanguagePage: true}, 'google_translate_element');
+}
+</script><script type='text/javascript' src='//translate.google.com/translate_a/element.js?cb=googleTranslateElementInit'></script>"
+
+process_iframe = function(url){
+  d = readLines(url) %>% as_data_frame() %>% .[['value']] %>% paste(collapse='\n')
+  tbl_ran = str_locate_all(d, 'TABLE') %>% range()
+  header = substr(d, 1, tbl_ran[1]-2) %>% str_replace('<body>', gt_code) %>% 
+    str_replace(fixed('html, body {'), 'html, body { max-width: 100%; overflow-x: hidden; ') # disable horiz scroll
+  main   = substr(d, start = tbl_ran[1]-1, stop = tbl_ran[2]+1)
+  # footer = substr(d, start = tbl_ran[2]+2, stop = nchar(d))
+  footer = '</body></html>'
+  main_head = substr(main, 1, str_locate(main, '<TR')[1]-1)
+  main = substr(main, str_locate(main, '<TR')[1], nchar(main)) %>% str_replace("</TABLE>", '')
+  main_foot = '</TABLE>'
+  l = main %>% str_split('</TR>') %>% .[[1]] %>% subset(., . != '') %>% paste('</TR>')
+  gt_root = 'https://translate.google.com/translate?hl=en&sl=auto&tl=en&u='
+  gt_tail = '&sandbox=1'
+  l2 = lapply(l, function(i){
+    lnk = str_extract(i, 'javascript:window.open.*<B>') %>% str_extract('http[^\']*')
+    str_replace(i, '</span>[ ]*</A>', paste0("</span></A><A href='", gt_root, lnk, gt_tail, "' target='_BLANK'>  (English)</A>")) %>% 
+      str_replace(fixed("javascript:window.open('"), '') %>% str_replace(fixed("');\""), '" target="_BLANK"')
+  }) %>% paste(collapse = '\n')
+  paste(header, main_head, l2, main_foot, footer, collapse = '\n')
+}
+
 # some time calculation functions
 now = as.Date(Sys.Date())
 add_days = function(d, n){
@@ -168,7 +197,9 @@ server <- function(input, output, session) {
     js$pageURL(url_args)
 
     # render to interface for reference and external use
-    output$gdelt_url = renderUI({ HTML(paste0("<a id='gdelt_url' href='", url, "' target='_blank'>", str_replace(url, '&times', '&amp;times'), "</a>"))})
+    link_url = ifelse(input$content_mode %in% c('ArtList', 'ArtGallery'), url %>% paste0(ifelse(input$translate, '&trans=googtrans', '')), url) # translate
+    output$gdelt_url = renderUI({ HTML(paste0("<a id='gdelt_url' href='", link_url), "' target='_blank'>", 
+                                              str_replace(link_url, '&times', '&amp;times'), "</a>")})
     
     # Manage widget fuctionality
     if(input$output_tab == 'GEO24'){
@@ -178,7 +209,13 @@ server <- function(input, output, session) {
       for(i in c('daterange', 'timespan', 'search_lang')) shinyjs::enable(i)
       for(i in c('max_records', 'data_format', 'data_sort')) shinyjs::show(i)
       if(is.na(input$timespan)) shinyjs::enable("daterange") else shinyjs::disable("daterange")
-      if(input$output_tab == 'CONTENT') shinyjs::enable("data_sort") else shinyjs::disable("data_sort")
+      if(input$output_tab == 'CONTENT'){
+        shinyjs::enable("data_sort")
+        if(input$content_mode %in% c('ArtList', 'ArtGallery')) shinyjs::enable("translate") else shinyjs::disable("translate")
+        } else{
+          shinyjs::disable("data_sort")
+          shinyjs::disable("translate")
+        }
     }
     
     # Title to detail search parameters
@@ -195,13 +232,22 @@ server <- function(input, output, session) {
     output$plot_title = renderUI({ HTML(paste0('<h3>', search_title, '</h3>')) })
     
     # iframe container for API response
-    output$frame <- renderUI({
-      # responsiveness. ~2/3 screen width for desktops; full-width for mobile devices
-      w = ifelse(input$dimension[1] > 767, -15 + 2 * input$dimension[1]/3, input$dimension[1])
-      h = ifelse(input$dimension[1] > 767, input$dimension[2]-70, input$dimension[2])
-      new_iframe <- tags$iframe(src = url, width = w, height = h)
-      new_iframe
-    })
+    # responsiveness. ~2/3 screen width for desktops; full-width for mobile devices
+    w = ifelse(input$dimension[1] > 767, -15 + 2 * input$dimension[1]/3, input$dimension[1])
+    h = ifelse(input$dimension[1] > 767, input$dimension[2]-70, input$dimension[2])
+    
+    if(input$translate & input$output_tab == 'CONTENT' & input$content_mode == 'ArtList'){
+      edited_iframe = process_iframe(url)
+      sink('www/iframe.html'); cat(edited_iframe); sink() # export to html
+      output$frame <- renderUI({
+        tags$iframe(src = './iframe.html', width = w, height = h)
+        # HTML(edited_iframe)
+      })
+    } else {
+      output$frame <- renderUI({
+        tags$iframe(src = url, width = w, height = h)
+      })
+    }
   })
   
   # hash --------------------------------------------------------------------------------
@@ -351,6 +397,7 @@ server <- function(input, output, session) {
       ),
       p("If you want to export the results from CONTENT or TIMELINE choose from the options under ", em("Format"),
         ". The URL at the bottom can be used to call the query output directly from the GDELT API."),
+      p(strong("Translation:"), "If you check the 'GT' option box the results in CONTENT MEDIA list mode will include options for results translation as well as links to English translations of individual articles."),
       easyClose = TRUE
       , size = 'l'))
   })
@@ -445,7 +492,7 @@ ui <- fluidPage(
   bsTooltip(id = 'geo_adm1', title = 'Specify ADM1 (top sub-national) geographical region of media mentions', placement = "top", trigger = "hover"),
   bsTooltip(id = 'geo_loc', title = 'Searches for a given word or phrase in the full formal name of the location - e.g. New York', placement = "top", trigger = "hover"),
   bsTooltip(id = 'geo_format', title = 'Specify format for data export', placement = "top", trigger = "hover"),
-  bsTooltip(id = 'tab-6471-3', title = 'Specify format for data export', placement = "top", trigger = "hover"),
+  bsTooltip(id = 'translate', title = 'Translate results in MEDIA LIST mode, and add Google Translate options for article links.', placement = "left", trigger = "hover"),
   
   # push arguments to URL
   extendShinyjs(text = urlCode),
@@ -529,8 +576,11 @@ ui <- fluidPage(
                    column(6, selectInput(inputId = 'data_sort', label = 'Sort', choices = sort_options, selected = ''), style=pad)
                  ),
                  hr(),
-                 # uiOutput('url'),
-                 uiOutput('gdelt_url'), br(),
+                 fluidRow(
+                   column(10, uiOutput('gdelt_url')), 
+                   column(2, checkboxInput(inputId = 'translate', label = 'GT', value = F))
+                 ),
+                 br(),
                  p('2017 by Robin Edwards. This site is an interface to the GDELT API but has has no formal affiliation.', id='footer', style="color:#999;font-size: 80%;")
     ),
     mainPanel(width = 8,
@@ -544,5 +594,4 @@ ui <- fluidPage(
 )
 
 shinyApp(ui, server)
-# shinyApp(ui, server, options = list(launch.browser=F))
 
