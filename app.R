@@ -22,7 +22,7 @@ new google.translate.TranslateElement({pageLanguage: 'en', layout: google.transl
 </script><script type='text/javascript' src='//translate.google.com/translate_a/element.js?cb=googleTranslateElementInit'></script>"
 
 process_iframe = function(url){
-  d = readLines(url) %>% as_data_frame() %>% .[['value']] %>% paste(collapse='\n')
+  d = readLines(url) %>% paste(collapse='\n')
   tbl_ran = str_locate_all(d, 'TABLE') %>% range()
   header = substr(d, 1, tbl_ran[1]-2) %>% str_replace('<body>', gt_code) %>% 
     str_replace(fixed('html, body {'), 'html, body { max-width: 100%; overflow-x: hidden; ') # disable horiz scroll
@@ -446,14 +446,15 @@ ui <- fluidPage(
 
                     /* rescale iframe contents */
                     iframe {
-                      zoom: .667;
-                      -webkit-zoom: .667;
-                      -ms-zoom: .667;
-                      -moz-transform: scale(.667, .667);
+                      overflow-x:hidden;
+                      zoom: .8;
+                      -webkit-zoom: .8;
+                      -ms-zoom: .8;
+                      -moz-transform: scale(.8, .8);
                       -webkit-transform: scale(1);
                       -o-transform: scale(1, 1);
-                      -ms-transform: scale(1.5, 1.5);
-                      transform: scale(1.5, 1.5);
+                      -ms-transform: scale(1.25, 1.25);
+                      transform: scale(1.25, 1.25);
                       -moz-transform-origin: top left;
                       -webkit-transform-origin: top left;
                       -o-transform-origin: top left;
@@ -461,7 +462,8 @@ ui <- fluidPage(
                       transform-origin: top left;
                     }
                     @media screen and (-webkit-min-device-pixel-ratio:0) { #scaled-frame { zoom: .667;} }
-
+                    
+                    
                     /* remove numericInput increment buttons */
                     input[type=number]::-webkit-inner-spin-button,
                     input[type=number]::-webkit-outer-spin-button {
