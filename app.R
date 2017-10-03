@@ -49,11 +49,11 @@ add_days = function(d, n){
   d <- ymd(d)
   d %m+% days(n)
 }
-add_hours = function(d, n){
-  #d = as.POSIXct(d)
-  d <- ymd_hms(d)
-  d %m+% minutes(n*60)
-}
+# add_hours = function(d, n){
+#   #d = as.POSIXct(d)
+#   d <- ymd_hms(d)
+#   d %m+% minutes(n*60)
+# }
 rf_date = function(x) paste0(substr(x,1,4), '-', substr(x,5,6), '-', substr(x,7,8))
 
 # function to translate logical inputs into a search string
@@ -135,17 +135,17 @@ server <- function(input, output, session) {
     search = ''
     if(input$search_terms != '') search = input$search_terms
     search = str_replace_all(search, ' ', '%20')
-    if(input$search_domain != ''){
-      domains = str_split(input$search_domain, ',')[[1]]
-      search = paste0(search, '%20', format_search_str(domains, 'domain'))
-    }
-    if(length(input$search_country) > 0) search = paste0(search, '%20', format_search_str(input$search_country, 'sourcecountry'))
-    if(length(input$source_lang) > 0) search = paste0(search, '%20', format_search_str(input$source_lang, 'sourcelang'))
     if(length(input$image_tags) > 0){
       img_tags = format_search_str(paste0('%22', input$image_tags, '%22'), 'imagewebtag')
       search = ifelse(search == '', paste0(search, img_tags), paste0(search, '%20', img_tags))
     }
     if(length(input$themes) > 0) for(i in input$themes) search = paste0(search, '%20theme:', str_replace_all(i,' ','_'))
+    if(input$search_domain != ''){
+      domains = str_split(input$search_domain, ',')[[1]]
+      search = paste0(search, '%20', format_search_str(domains, 'domainis'))
+    }
+    if(length(input$search_country) > 0) search = paste0(search, '%20', format_search_str(input$search_country, 'sourcecountry'))
+    if(length(input$source_lang) > 0) search = paste0(search, '%20', format_search_str(input$source_lang, 'sourcelang'))
     if(input$output_tab == 'GEO24'){
       if(input$geo_near != '') search = paste0(search, '%20near:', input$geo_near)
       if(input$geo_cc != '') search = paste0(search, '%20locationcc:', input$geo_cc)
@@ -154,9 +154,9 @@ server <- function(input, output, session) {
         location = str_replace_all(input$geo_loc, '["\']', ''); 
         search = paste0(search, '%20location:%22', location, '%22')
       }
-    } else{ # params not supported by GEO API
-      if(input$search_lang != '') search = paste0(search, '%20searchlang:', input$search_lang)
-    }
+    } #else{ # params not supported by GEO API
+    #  if(input$search_lang != '') search = paste0(search, '%20searchlang:', input$search_lang)
+    #}
     # logically build up full URL, incorporating API search string
     if(input$output_tab == 'GEO24'){ # GEO MODE
       url = paste0(geo_root, search, '&mode=', input$geo_mode)
@@ -166,30 +166,35 @@ server <- function(input, output, session) {
       # CONTENT or TIMELINE modes
       # date params
       shinyjs::enable("daterange")
-      if(is.na(input$timespan)){       # period defined by date range
+      timespan = ''
+      if(input$timespan == ''){       # period defined by date range
         end_date = ifelse(input$daterange[2] == as.character(today()),
                           format(Sys.time(), '%Y%m%d%H%M%S'), 
                           format(as.Date(input$daterange[2]), paste0('%Y%m%d', '235959')))
         start_date = format(as.Date(input$daterange[1]), paste0('%Y%m%d', '000000'))
-        timespan = ''
-      } else{                          # period defined in past hours
-        if(str_detect(input$timespan, fixed('.'))){ # i.e. use minutes
-          timespan = paste0('&timespan=', max(15, floor(input$timespan * 60))) 
-        } else timespan = paste0('&timespan=', input$timespan, 'h')
+      } else{                          # period defined in past hours/days/weeks/months
+        timespan = paste0('&timespan=', input$timespan)
       }
       
       # build URL
       url = paste0(root, search)
+      if(input$search_lang != '') url = paste0(url, '&searchlang=', input$search_lang)
       if(input$output_tab == 'CONTENT'){
         url = paste0(url, '&mode=', input$content_mode)
         if(input$data_sort != '')  url = paste0(url, '&sort=', input$data_sort) # sort argument
       } else if(input$output_tab == 'TIMELINE'){
         url = paste0(url, '&mode=', input$timeline_mode, '&timelinesmooth=', input$smooth)
       }
-      if(input$max_records > 75) url = paste0(url, '&maxrecords=', input$max_records)
+      url = paste0(url, '&maxrecords=', input$max_records)
       if(input$data_format != '') url = paste0(url, '&format=', input$data_format)
-      url = ifelse(timespan != '', paste0(url, timespan),
-                   paste0(url, '&startdatetime=', start_date, '&enddatetime=', end_date))
+      if(timespan != ''){
+        # default hours
+        url = paste0(url, timespan)
+      } else{ 
+        if(!all(is.na(input$daterange))){
+          url = paste0(url, '&startdatetime=', start_date, '&enddatetime=', end_date)
+        }
+      }
     }
     
     # append args to URL in browser
@@ -208,7 +213,7 @@ server <- function(input, output, session) {
     } else{
       for(i in c('daterange', 'timespan', 'search_lang')) shinyjs::enable(i)
       for(i in c('max_records', 'data_format', 'data_sort')) shinyjs::show(i)
-      if(is.na(input$timespan)) shinyjs::enable("daterange") else shinyjs::disable("daterange")
+      if(input$timespan == '') shinyjs::enable("daterange") else shinyjs::disable("daterange")
       if(input$output_tab == 'CONTENT'){
         shinyjs::enable("data_sort")
         if(input$content_mode %in% c('ArtList', 'ArtGallery')) shinyjs::enable("translate") else shinyjs::disable("translate")
@@ -284,8 +289,8 @@ server <- function(input, output, session) {
       # theme
       # theme_qry = full_qry %>% filter(str_detect(value, 'theme')) %>% .[['value']]
       # domain
-      domain_qry = full_qry %>% filter(str_detect(value, 'domain:')) %>% 
-        mutate(value = str_replace(value, 'domain:', '')) %>% .[['value']] %>% paste(collapse = ',')
+      domain_qry = full_qry %>% filter(str_detect(value, 'domainis:')) %>% 
+        mutate(value = str_replace(value, 'domainis:', '')) %>% .[['value']] %>% paste(collapse = ',')
       updateTextInput(session = session, inputId = 'search_domain', value = domain_qry)
       # sourcecountry
       sourcecountry_qry = full_qry %>% filter(str_detect(value, 'sourcecountry:')) %>% 
@@ -346,10 +351,7 @@ server <- function(input, output, session) {
           updateSelectInput(session = session, inputId = 'timeline_mode', selected = hash_args$mode)
         }
         # content/timeline timespan
-        if(!is.null(hash_args$timespan)){
-          qry_timespan = ifelse(str_detect(hash_args$timespan, 'h'), str_extract(hash_args$timespan, '[0-9]+'), round(as.numeric(hash_args$timespan)/60,2))
-          updateNumericInput(session=session, inputId = 'timespan', value = qry_timespan)
-        }
+        if(!is.null(hash_args$timespan)) updateTextInput(session=session, inputId = 'timespan', value = hash_args$timespan)
       }
       updateTabsetPanel(session = session, inputId = "output_tab", selected = tab)
     }
@@ -378,7 +380,7 @@ server <- function(input, output, session) {
         tags$li(strong('Themes'), "- these offer a powerful way of searching for complex topics, since they can include hundreds or even thousands of different phrases or names under a single heading. Themes are based on GDELT's Global Knowledge Graph (GKG). Search for relevant themes in the dialogue box, or ", a(href = 'http://data.gdeltproject.org/api/v2/guides/LOOKUP-GKGTHEMES.TXT', 'see the full list', target="_blank"), '.')
       ),
       p(strong('Combinations:'), 'These work together so e.g. you can specify a search for both search terms AND image tags. Note that when using the GEO24 output the available mode options tend to only work with either search terms or image tags - if you get an error message you may need to re-specify your criteria.'),
-      p(strong('NOT criteria:'), "For most fields, inputs prefixed by the minus/hyphen symbol are interpretted as NOT, e.g. search term:", code('-trump'), ', image tag: ', code('-person'), ', country: ', code('-United Kingdom'), ', search languge: ', code('-eng'), ', domain: ', code('-bbc.co.uk'), '.'),
+      p(strong('NOT criteria:'), "For most fields, inputs prefixed by the minus/hyphen symbol are interpretted as NOT, e.g. search term:", code('-trump'), ', image tag: ', code('-person'), ', country: ', code('-United Kingdom'), ', search languge: ', code('-eng'), ', domainis: ', code('-bbc.co.uk'), '.'),
       h4('Other criteria'),
       p("You can further narrow down your query in the following ways:"),
       tags$ul(
@@ -438,11 +440,11 @@ ui <- fluidPage(
 
                     /* compress widgets a bit to fit on page */
                     hr {border-top: 1px solid #000; margin-top: 8px; margin-bottom: 12px; }
-                    .form-control {height: 25px; margin-bottom: 0px;}
                     .selectize-input, .input-sm, .form-group, .shiny-input-container, .form-control
                     { padding:0px 5px 0px 5px; margin-bottom: 0px; min-height: 25px; }
                     .selectize-control { padding:0px 0px 0px 0px; }
                     .item { font-size: 11px; }
+                    input { height: 27px; min-height: 27px; max-height: 27px; margin-bottom: 5px; padding:0px 5px 0px 5px; }
 
                     /* rescale iframe contents */
                     iframe {
@@ -476,14 +478,14 @@ ui <- fluidPage(
   # Custom tooltips for widgets
   shinyjs::useShinyjs(),
   bsTooltip(id = 'search_terms', title = 'Supports multiple terms separated by spaces, phrases in double quotes e.g. "cats and dogs", and OR if nested in parentheses, e.g. (cats OR dogs)', placement = "top", trigger = "hover"),
-  bsTooltip(id = 'search_lang', title = 'Language of the terms you are searchig for, if not English. Matching content in this language is returned. (This feature seems to have some issues)', placement = "top", trigger = "hover"),
+  bsTooltip(id = 'search_lang', title = 'Language of the search terms you are using, if not English. This lets you search for specific non-English words/phrases without any automatic translation. Matching content in this language is returned.', placement = "top", trigger = "hover"),
   bsTooltip(id = 'image_tags', title = 'Every image processed by GDELT is assigned one or more topical tags from a universe of more than 10,000 objects and activities recognized by Google algorithms', placement = "top", trigger = "hover"),
   bsTooltip(id = 'themes', title = 'Searches for any of the GDELT Global Knowledge Graph (GKG) Themes. GKG Themes offer a powerful way of searching for complex topics, since there can be numerous different phrases or names under a single heading. Key in likely relevant themes to find matching options. Words on the left denote the semantic hierarchy (NB. "TAX" seems to refer to taxonomy not taxation)', placement = "top", trigger = "hover"),
-  bsTooltip(id = 'search_country', title = 'Country of media origin', placement = "top", trigger = "hover"),
+  bsTooltip(id = 'search_country', title = 'Country or countries where the target content has originated', placement = "top", trigger = "hover"),
   bsTooltip(id = 'search_domain', title = 'Internet domain of origin. Accepts multiple domains seperated by commas.', placement = "top", trigger = "hover"),
-  bsTooltip(id = 'source_lang', title = 'Language of content. You can specify e.g. French but use search terms in English. GDELT handles the interpretation', placement = "top", trigger = "hover"),
-  bsTooltip(id = 'timespan', title = 'Specify period in most recent hours', placement = "bottom", trigger = "hover"),
-  bsTooltip(id = 'daterange', title = '(Functions when "Hours" is blank.) By default GDELT reports the most recent ~3 months, but you can specify any date range within this window', placement = "bottom", trigger = "hover"),
+  bsTooltip(id = 'source_lang', title = 'Language(s) of the content you are searching for, which can be different to that of your search terms. So you can search for e.g. French content with English search terms - GDELT handles the interpretation', placement = "top", trigger = "hover"),
+  bsTooltip(id = 'timespan', title = 'Specify recent period, e.g: "24h", "3w", "2m" (hours/weeks/months), or without code letter e.g. "30" for minutes', placement = "bottom", trigger = "hover"),
+  bsTooltip(id = 'daterange', title = '(Functions when "Recent" is blank.) By default GDELT reports the most recent ~3 months, but you can specify any date range within this window', placement = "bottom", trigger = "hover"),
   bsTooltip(id = 'smooth', title = 'Line smooth option, using rolling average method', placement = "bottom", trigger = "hover"),
   bsTooltip(id = 'max_records', title = 'GDELT will return 75 by default, but this can be increased to 250', placement = "right", trigger = "hover"),
   bsTooltip(id = 'data_format', title = 'Specify format for data export', placement = "top", trigger = "hover"),
@@ -509,13 +511,12 @@ ui <- fluidPage(
                  # INPUTS
                  hr(),
                  tabsetPanel(id = 'input_tab',
-                             tabPanel("SEARCH TERMS",
+                             tabPanel("SEARCH",
                                       fluidRow(
-                                        column(6, textInput(inputId = 'search_terms', label = 'search terms', value = 'Brexit'), style=pad),
-                                        column(4, selectInput(inputId = 'search_lang', label = 'searchLang', selected = 'English', choices = lang_codes), style=pad)
+                                        column(12, textInput(inputId = 'search_terms', label = 'Search terms', value = 'Brexit'), style=pad)
                                       )
                              ),
-                             tabPanel("IMAGE TAGS",
+                             tabPanel("IMAGES",
                                       fluidRow(
                                         column(12, selectizeInput(inputId = 'image_tags', label = 'Image tags', choices = NULL, selected = 1, multiple=T, options=list(create = T)), style=pad)
                                       )
@@ -527,15 +528,18 @@ ui <- fluidPage(
                              )
                  ),
                  fluidRow(
-                   column(6, selectizeInput(inputId = 'search_country', label = 'Country', choices = country_codes, multiple = T, options=list(create = T)), style=pad),
+                   column(4, selectInput(inputId = 'search_lang', label = 'Search language', selected = 'English', choices = lang_codes), style=pad),
+                   column(8, selectizeInput(inputId = 'source_lang', label = 'Source language(s)', choices = lang_codes, multiple = T, options=list(create = T)), style=pad)
+                 ),
+                 fluidRow(
+                   column(6, selectizeInput(inputId = 'search_country', label = 'Country/ies of origin', choices = country_codes, multiple = T, options=list(create = T)), style=pad),
                    column(6, textInput(inputId = 'search_domain', label = 'Domain', value = '', placeholder = 'e.g. "bbc.co.uk"'), style=pad)
                  ),
                  fluidRow(
-                   column(6, dateRangeInput(inputId = "daterange", label = "Date range",
-                                            start = add_days(now, -82), end = now,
+                   column(9, dateRangeInput(inputId = "daterange", label = "Date range",
+                                            start = NULL, end = NULL,
                                             min = add_days(now, -82), max = now), style=pad),
-                   column(2, numericInput(inputId = 'timespan', label='Hours', value='24', min=.25, ), style=pad),
-                   column(4, selectizeInput(inputId = 'source_lang', label = 'SourceLang', choices = lang_codes, multiple = T, options=list(create = T)), style=pad)
+                   column(3, textInput(inputId = 'timespan', label='Recent', value='24h'), style=pad)
                  ),
                  
                  # OUTPUTS       
@@ -545,8 +549,7 @@ ui <- fluidPage(
                                       br(),
                                       fluidRow(
                                         column(12, selectInput(inputId = 'content_mode', label = 'Visualisation options', choices = content_modes, selected = 'Volume'), style=pad)
-                                      ),
-                                      br()
+                                      )
                              ),
                              tabPanel("TIMELINE", 
                                       br(), #p('Timeline-based stats/data for matching media activity'),
