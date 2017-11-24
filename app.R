@@ -125,6 +125,30 @@ adm1 = c('', setNames(as.character(adm1$V1), adm1$V2))
 
 server <- function(input, output, session) {
   
+  # Tooltips
+  tt_delay = list(delay = list(show=1500, hide=0))
+  addTooltip(session, id = 'search_terms', title = 'Supports multiple terms separated by spaces, phrases in double quotes e.g. "cats and dogs", and OR if nested in parentheses, e.g. (cats OR dogs)', placement = "top", trigger = "hover", options = tt_delay)
+  addTooltip(session, id = 'search_lang', title = 'Language of the search terms you are using, if not English. This lets you search for specific non-English words/phrases without any automatic translation. Matching content in this language is returned.', placement = "top", trigger = "hover", options = tt_delay)
+  addTooltip(session, id = 'image_tags', title = 'Every image processed by GDELT is assigned one or more topical tags from a universe of more than 10,000 objects and activities recognized by Google algorithms', placement = "top", trigger = "hover", options = tt_delay)
+  addTooltip(session, id = 'themes', title = 'Searches for any of the GDELT Global Knowledge Graph (GKG) Themes. GKG Themes offer a powerful way of searching for complex topics, since there can be numerous different phrases or names under a single heading. Key in likely relevant themes to find matching options. Words on the left denote the semantic hierarchy (NB. "TAX" seems to refer to taxonomy not taxation)', placement = "top", trigger = "hover", options = tt_delay)
+  addTooltip(session, id = 'search_country', title = 'Country or countries where the target content has originated', placement = "top", trigger = "hover", options = tt_delay)
+  addTooltip(session, id = 'search_domain', title = 'Internet domain of origin. Accepts multiple domains seperated by commas.', placement = "top", trigger = "hover", options = tt_delay)
+  addTooltip(session, id = 'source_lang', title = 'Language(s) of the content you are searching for, which can be different to that of your search terms. So you can search for e.g. French content with English search terms - GDELT handles the interpretation', placement = "top", trigger = "hover", options = tt_delay)
+  addTooltip(session, id = 'timespan', title = 'Specify recent period, e.g: "24h", "3w", "2m" (hours/weeks/months), or without code letter e.g. "30" for minutes', placement = "bottom", trigger = "hover", options = tt_delay)
+  addTooltip(session, id = 'daterange', title = '(Functions when "Recent" is blank.) By default GDELT reports the most recent ~3 months, but you can specify any date range within this window', placement = "bottom", trigger = "hover", options = tt_delay)
+  addTooltip(session, id = 'smooth', title = 'Line smooth option, using rolling average method', placement = "bottom", trigger = "hover", options = tt_delay)
+  addTooltip(session, id = 'max_records', title = 'GDELT will return 75 by default, but this can be increased to 250', placement = "right", trigger = "hover", options = tt_delay)
+  addTooltip(session, id = 'data_format', title = 'Specify format for data export', placement = "top", trigger = "hover", options = tt_delay)
+  addTooltip(session, id = 'data_sort', title = 'By default results are sorted by relevance. You can also sort by date or article tone instead', placement = "top", trigger = "hover", options = tt_delay)
+  addTooltip(session, id = 'geo_near', title = 'Returns all matches within a certain radius (bounding box) of a given point. You specify a particular latitude and longitude and distance in either miles (default) or kms (e.g. for 100km from Paris "48.85,2.35,100km")', placement = "top", trigger = "hover", options = tt_delay)
+  addTooltip(session, id = 'geo_timespan', title = 'The geo portal searches the past 24 hours (1,440 mins), but this can be reduced further to a minimum timespan of 15 mins', placement = "top", trigger = "hover", options = tt_delay)
+  addTooltip(session, id = 'geo_cc', title = 'Specify country of media mentions', placement = "top", trigger = "hover", options = tt_delay)
+  addTooltip(session, id = 'geo_adm1', title = 'Specify ADM1 (top sub-national) geographical region of media mentions', placement = "top", trigger = "hover", options = tt_delay)
+  addTooltip(session, id = 'geo_loc', title = 'Searches for a given word or phrase in the full formal name of the location - e.g. New York', placement = "top", trigger = "hover", options = tt_delay)
+  addTooltip(session, id = 'geo_format', title = 'Specify format for data export', placement = "top", trigger = "hover", options = tt_delay)
+  addTooltip(session, id = 'translate', title = 'Translate results in MEDIA LIST mode, and add Google Translate options for article links.', placement = "left", trigger = "hover", options = tt_delay)
+  
+  
   # feed large selections from server (instead of pre-loading)
   updateSelectizeInput(session = session, inputId = 'image_tags', choices = image_tags, server = TRUE)
   updateSelectizeInput(session = session, inputId = 'themes', choices = themes, server = TRUE)
@@ -407,7 +431,6 @@ server <- function(input, output, session) {
 
 # UI --------------------------------------------------------------------------------
 
-
 pad = 'padding:0px 5px 0px 5px;'
 
 # code to append app arguments to the URL
@@ -477,26 +500,7 @@ ui <- fluidPage(
     ),
   # Custom tooltips for widgets
   shinyjs::useShinyjs(),
-  bsTooltip(id = 'search_terms', title = 'Supports multiple terms separated by spaces, phrases in double quotes e.g. "cats and dogs", and OR if nested in parentheses, e.g. (cats OR dogs)', placement = "top", trigger = "hover"),
-  bsTooltip(id = 'search_lang', title = 'Language of the search terms you are using, if not English. This lets you search for specific non-English words/phrases without any automatic translation. Matching content in this language is returned.', placement = "top", trigger = "hover"),
-  bsTooltip(id = 'image_tags', title = 'Every image processed by GDELT is assigned one or more topical tags from a universe of more than 10,000 objects and activities recognized by Google algorithms', placement = "top", trigger = "hover"),
-  bsTooltip(id = 'themes', title = 'Searches for any of the GDELT Global Knowledge Graph (GKG) Themes. GKG Themes offer a powerful way of searching for complex topics, since there can be numerous different phrases or names under a single heading. Key in likely relevant themes to find matching options. Words on the left denote the semantic hierarchy (NB. "TAX" seems to refer to taxonomy not taxation)', placement = "top", trigger = "hover"),
-  bsTooltip(id = 'search_country', title = 'Country or countries where the target content has originated', placement = "top", trigger = "hover"),
-  bsTooltip(id = 'search_domain', title = 'Internet domain of origin. Accepts multiple domains seperated by commas.', placement = "top", trigger = "hover"),
-  bsTooltip(id = 'source_lang', title = 'Language(s) of the content you are searching for, which can be different to that of your search terms. So you can search for e.g. French content with English search terms - GDELT handles the interpretation', placement = "top", trigger = "hover"),
-  bsTooltip(id = 'timespan', title = 'Specify recent period, e.g: "24h", "3w", "2m" (hours/weeks/months), or without code letter e.g. "30" for minutes', placement = "bottom", trigger = "hover"),
-  bsTooltip(id = 'daterange', title = '(Functions when "Recent" is blank.) By default GDELT reports the most recent ~3 months, but you can specify any date range within this window', placement = "bottom", trigger = "hover"),
-  bsTooltip(id = 'smooth', title = 'Line smooth option, using rolling average method', placement = "bottom", trigger = "hover"),
-  bsTooltip(id = 'max_records', title = 'GDELT will return 75 by default, but this can be increased to 250', placement = "right", trigger = "hover"),
-  bsTooltip(id = 'data_format', title = 'Specify format for data export', placement = "top", trigger = "hover"),
-  bsTooltip(id = 'data_sort', title = 'By default results are sorted by relevance. You can also sort by date or article tone instead', placement = "top", trigger = "hover"),
-  bsTooltip(id = 'geo_near', title = 'Returns all matches within a certain radius (bounding box) of a given point. You specify a particular latitude and longitude and distance in either miles (default) or kms (e.g. for 100km from Paris "48.85,2.35,100km")', placement = "top", trigger = "hover"),
-  bsTooltip(id = 'geo_timespan', title = 'The geo portal searches the past 24 hours (1,440 mins), but this can be reduced further to a minimum timespan of 15 mins', placement = "top", trigger = "hover"),
-  bsTooltip(id = 'geo_cc', title = 'Specify country of media mentions', placement = "top", trigger = "hover"),
-  bsTooltip(id = 'geo_adm1', title = 'Specify ADM1 (top sub-national) geographical region of media mentions', placement = "top", trigger = "hover"),
-  bsTooltip(id = 'geo_loc', title = 'Searches for a given word or phrase in the full formal name of the location - e.g. New York', placement = "top", trigger = "hover"),
-  bsTooltip(id = 'geo_format', title = 'Specify format for data export', placement = "top", trigger = "hover"),
-  bsTooltip(id = 'translate', title = 'Translate results in MEDIA LIST mode, and add Google Translate options for article links.', placement = "left", trigger = "hover"),
+  shinyBS:::shinyBSDep,
   
   # push arguments to URL
   extendShinyjs(text = urlCode),
@@ -599,4 +603,3 @@ ui <- fluidPage(
 )
 
 shinyApp(ui, server)
-
