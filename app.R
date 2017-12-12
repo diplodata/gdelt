@@ -509,8 +509,8 @@ ui <- fluidPage(
   
   sidebarLayout(
     sidebarPanel(width = 4, id = 'sidebar',
-                 fluidRow( column(12, h3("GDELT Project"))),
-                 fluidRow( column(12, p(a('GDELT', href = 'https://www.gdeltproject.org/', target="_blank"), " is a web search tool offering more intelligent ways to find what you want.", a(href = '#', 'How to use it.', onclick = "$('#help').trigger('click');"), a('Full documentation.', href = 'https://blog.gdeltproject.org/gdelt-doc-2-0-api-debuts/', target="_blank")))),
+                 fluidRow( column(12, h3("GDELT Project Interface"))),
+                 fluidRow( column(12, p(a('GDELT', href = 'https://www.gdeltproject.org/', target="_blank"), " is the ", em("Global Database of Events, Language and Tone"), ", a multilingual web content offering powerful search tool. This page is an interface to some GDELT APIs but has has no affiliation.", a(href = '#', 'Instructions.', onclick = "$('#help').trigger('click');"), a('Documentation.', href = 'https://blog.gdeltproject.org/gdelt-doc-2-0-api-debuts/', target="_blank")))),
 
                  # INPUTS
                  hr(),
@@ -590,7 +590,7 @@ ui <- fluidPage(
                    column(2, checkboxInput(inputId = 'translate', label = 'GT', value = F))
                  ),
                  br(),
-                 p('2017 by Robin Edwards. This site is an interface to the GDELT API but has has no formal affiliation.', id='footer', style="color:#999;font-size: 80%;")
+                 p('Page by Robin Edwards (@geotheory), 2017', id='footer', style="color:#999;font-size: 80%;")
     ),
     mainPanel(width = 8,
               fluidRow(
